@@ -53,10 +53,10 @@ def translate(model, tokenizer, text, src_lang, tgt_lang, a=32, b=3 ):
     
 
 
-def batched(model_name, file_path: string, source_lang, target_lang, batch_size = 16):
+def batched(model_name, dataset_path: string, source_lang, target_lang, batch_size = 16):
 
     model, tokenizer = load_model(model_name)
-    data = process_file(file_path=file_path)
+    data = process_file(dataset_path=dataset_path)
     sorted_data = sorted(data, key= lambda item: len(item["translation"][source_lang]), reverse=True)
 
     result = []
@@ -79,13 +79,13 @@ def batched(model_name, file_path: string, source_lang, target_lang, batch_size 
     return bleu_per_line, average_bleu_score
 
     
-def process_file(file_path: string) -> List:
+def process_file(dataset_path: string) -> List:
 
     '''
     This function extract the json objects from a json file 
     '''
 
-    with open(file_path, 'r', encoding='utf-8') as file:
+    with open(dataset_path, 'r', encoding='utf-8') as file:
 
         data = []
         for line in file:
@@ -149,13 +149,13 @@ def calculate_bleu_score(file_path, target_lang):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--model_name", help="error: no model name")
-    parser.add_argument("--file_path", help="error: no inference file path")
+    parser.add_argument("--dataset_path", help="error: no inference file path")
     parser.add_argument("--source_lang", default="en")
     parser.add_argument("--target_lang", default="yor")
 
     args = parser.parse_args()
     print(args)
-    batched(model_name=args.model_name, file_path=args.file_path, source_lang=args.source_lang, target_lang=args.target_lang)
+    batched(model_name=args.model_name, dataset_path=args.dataset_path, source_lang=args.source_lang, target_lang=args.target_lang)
    
 
 
