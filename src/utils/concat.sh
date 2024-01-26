@@ -5,4 +5,4 @@ python concatenate_sentence.py \
     --number_of_concatenations 664 \
     --back_translation_model masakhane/mbart50_yor_en_news \
     --back_translation_percent 0.1 \
-    --destination_filepath ../../data/10_sentence_concat
+    --destination_filepath ../../data/sentence_concat

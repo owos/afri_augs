@@ -9,15 +9,16 @@ Other References:
 Improving Neural Machine Translation Models with Monolingual Data by Sennrich et al
 (https://aclanthology.org/P16-1009)
 """
-# pylint: disable=too-many-arguments,too-many-locals
-import os
 import argparse
 import logging
 import math
+
+# pylint: disable=too-many-arguments,too-many-locals
+import os
 import random
 from typing import List, Tuple
 
-from datasets import DatasetDict, load_dataset
+from datasets import Dataset, load_dataset
 from transformers import pipeline
 
 # Configure logging
@@ -25,14 +26,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger("sentencer concatenator")
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-device = "mps"
+DEVICE = "mps"
 
 
 def back_translate(
     origin_target_data: list,
     model: str,
     sample_percent: float,
-) -> DatasetDict:
+) -> Tuple[List[str], List[int]]:
     """
     Function to back translate a list of sentences using a model from huggingface.
 
@@ -42,14 +43,14 @@ def back_translate(
         sample_percent (float): percent of data to back_tranlate.
 
     Returns:
-        DatasetDict: Dataset of back translated sentences.
+        Tuple[List[str], List[int]]: Dataset of back translated sentences.
     """
     number_of_samples = math.ceil(sample_percent * len(origin_target_data))
     target_sample_indexes = random.sample(
         range(len(origin_target_data)), number_of_samples
     )
     target_samples = [origin_target_data[index] for index in target_sample_indexes]
-    translator = pipeline("text2text-generation", model=model, device=device)
+    translator = pipeline("text2text-generation", model=model, device=DEVICE)
     translated_source_data = [
         result["generated_text"] for result in translator(target_samples)
     ]
@@ -66,7 +67,7 @@ def concantenate_sentences(
     back_translation_model: str = None,
     back_translation_percent: float = None,
     dataset: str = "masakhane/mafand",
-) -> Tuple[List[str], List[str]]:
+) -> Dataset:
     """
     Function to concantenate sentences from a source and target file as described
     by Kondo et al in Sentence Concatenation Approach to Data Augmentation for Neural.
@@ -92,7 +93,7 @@ def concantenate_sentences(
         dataset (str, optional): Dataset to augment. Defaults to `masakhane/mafand`.
 
     Returns:
-        Tuple[List[str], List[str]]: Returns of a tuple of the source and target sentences
+        Dataset: Returns of a tuple of the source and target sentences
 
     Example Usage:
         ```
@@ -126,12 +127,12 @@ def concantenate_sentences(
         ```
     """
     # load data
-    data = load_dataset(dataset, subset_name)
+    data = load_dataset(dataset, subset_name, split="train")
     logger.info("Dataset loaded")
     source_lang = subset_name.split("-")[0]
     target_lang = subset_name.split("-")[1]
-    origin_source_data = [pair[source_lang] for pair in data["train"]["translation"]]
-    origin_target_data = [pair[target_lang] for pair in data["train"]["translation"]]
+    origin_source_data = [pair[source_lang] for pair in data["translation"]]
+    origin_target_data = [pair[target_lang] for pair in data["translation"]]
     logger.info("Source and target data extracted.")
 
     # if back translate is true, back translate the origin data else
@@ -183,29 +184,14 @@ def concantenate_sentences(
                 + f" {seperator_token} "
                 + pseudo_target_data[pseudo_index]
             )
+        else:
+            logger.info("Dropped : %s", new_source)
 
     logger.info("Putting augmented data into huggingface dataset.")
     for source, target in list(zip(concantenated_source, concantenated_target)):
-        data["train"] = data["train"].add_item({"translation":{"en": source, "yor": target}})
+        data = data.add_item({"translation": {"en": source, "yor": target}})
 
     return data
-
-
-def restructure(
-    raw_data: DatasetDict, source_lang: str, target_lang: str
-) -> DatasetDict:
-    """Function to create source and target columns."""
-    for data_split in raw_data:
-        source_data = [
-            pair[source_lang] for pair in raw_data[data_split]["translation"]
-        ]
-        target_data = [
-            pair[target_lang] for pair in raw_data[data_split]["translation"]
-        ]
-        raw_data[data_split] = raw_data[data_split].add_column(source_lang, source_data)
-        raw_data[data_split] = raw_data[data_split].add_column(target_lang, target_data)
-        raw_data[data_split] = raw_data[data_split].remove_columns("translation")
-    return raw_data
 
 
 if __name__ == "__main__":
@@ -278,10 +264,13 @@ if __name__ == "__main__":
         args.back_translation_percent,
         args.dataset,
     )
-    logger.info("Restructuring data to fit the tsv format.")
-    augmented_data = restructure(augmented_data, "en", "yor")
-    for split in augmented_data.keys():
-        augmented_data[split].to_csv(
-            f"{args.destination_filepath}/{split}.tsv", sep="\t"
-        )
-    logger.info("Augmented data saved! Adios!")
+    file_path = (
+        f"{args.destination_filepath}/{args.subset_name}"
+        f"/sentence_concat_{int(args.back_translation_percent * 100)}.json"
+    )
+    logger.info("Saving data to %s", file_path)
+    augmented_data.to_json(
+        file_path,
+        orient="records",
+    )
+    logger.info("Adios!")
