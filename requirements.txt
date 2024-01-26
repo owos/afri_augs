@@ -1,0 +1,13 @@
+torch
+transformers==4.36.2
+wandb
+datasets
+argparse
+pyyaml
+evaluate
+bitsandbytes
+einops
+accelerate
+unbabel-comet>=2.0.0
+git+https://github.com/huggingface/peft.git
+tensorboard
