@@ -29,7 +29,9 @@ import datasets
 import evaluate
 import numpy as np
 import transformers
-from datasets import load_dataset
+from datasets import load_dataset, concatenate_datasets
+
+import transformers
 from transformers import (
     AutoConfig,
     AutoModelForSeq2SeqLM,
@@ -273,6 +275,18 @@ class DataTrainingArguments:
             )
         },
     )
+    do_aug: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to perform data augmentation or not"
+        },
+    )
+    aug_file: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "An optional input augmentaiont data file."
+        },
+    )
 
     def __post_init__(self):
         if (
@@ -439,6 +453,9 @@ def main():
             cache_dir=model_args.cache_dir,
             token=model_args.token,
         )
+    if data_args.do_aug and data_args.aug_file is not None:
+        aug_data = load_dataset("json", data_files=data_args.aug_file)
+        raw_datasets['train'] = concatenate_datasets([raw_datasets['train'], aug_data['train']])
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading.
 
