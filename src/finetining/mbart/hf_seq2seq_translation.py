@@ -394,7 +394,7 @@ def main():
         )
     if data_args.do_aug and data_args.aug_file is not None:
         aug_data = load_dataset("json", data_files=data_args.aug_file)
-        raw_datasets['train'] = concatenate_datasets{[raw_datasets['train'], aug_data['train']]}
+        raw_datasets['train'] = concatenate_datasets([raw_datasets['train'], aug_data['train']])
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading.
 
