@@ -88,12 +88,12 @@ def main(args):
     warmup_steps = 1_00
     training_steps = 60000
     losses = []
-    seed_value = 42
+    #seed_value = 42
     
     train_data = process_file(data_train)
     dev_data = process_file(data_dev)
 
-    random.seed(seed_value)
+    #random.seed(seed_value)
    
    #create a List for the indexes of the training sample
     train_indices = list(range(len(train_data)))
@@ -151,6 +151,7 @@ def main(args):
         os.mkdir(MODEL_SAVE_PATH)
 
     tq = trange(len(losses), training_steps)
+
     def evaluate_model(model, tokenizer, val_dataset, max_length, lang1, lang2, l1, l2):
         model.eval()  # Set the model to evaluation mode
         val_losses = []
