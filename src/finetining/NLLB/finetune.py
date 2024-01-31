@@ -78,7 +78,6 @@ def main(args):
 
     data_train = args.traindatapath
     data_dev = args.devdatapath
-    data_test = args.testdatapath
     multiway = args.ismultiway
 
 
@@ -87,13 +86,12 @@ def main(args):
     steps = (len(data_train) // batch_size ) * epochs
     max_length = 256
     warmup_steps = 1_00
-    training_steps = 5
+    training_steps = 60000
     losses = []
     seed_value = 42
     
     train_data = process_file(data_train)
     dev_data = process_file(data_dev)
-    test_data = process_file(data_test)
 
     random.seed(seed_value)
    
@@ -156,6 +154,7 @@ def main(args):
     def evaluate_model(model, tokenizer, val_dataset, max_length, lang1, lang2, l1, l2):
         model.eval()  # Set the model to evaluation mode
         val_losses = []
+        random.shuffle(val_dataset)
         with torch.no_grad():  # Disable gradient calculation
             for val_samp in val_dataset:
                 xx, yy = val_samp["translation"][l1], val_samp["translation"][l2]
@@ -213,7 +212,7 @@ def main(args):
             if i % 100 == 0 and i > 0:
                 model.save_pretrained(MODEL_SAVE_PATH)
                 tokenizer.save_pretrained(MODEL_SAVE_PATH)
-                avg_val_loss = evaluate_model(model, tokenizer, test_data, max_length, lang1, lang2, l1, l2)
+                avg_val_loss = evaluate_model(model, tokenizer, dev_data, max_length, lang1, lang2, l1, l2)
                 print("Checkpoint validation loss: {}".format(avg_val_loss))
                 model.train()
         cleanup()
@@ -226,7 +225,6 @@ if __name__ == "__main__":
     parser.add_argument("--targetlang", type=str, default='yor')
     parser.add_argument("--traindatapath", type=str, default='./test.json')
     parser.add_argument("--devdatapath", type=str, default='./test.json')
-    parser.add_argument("--testdatapath", type=str, default='./test.json')
     parser.add_argument("--ismultiway", type=bool, default=False)
     
     args = parser.parse_args()
