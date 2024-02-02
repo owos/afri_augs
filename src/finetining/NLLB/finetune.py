@@ -6,7 +6,7 @@ import gc
 import random
 import numpy as np
 import torch
-from transformers.optimization import Adafactor
+from transformers.optimization import Adafactor, set_seed
 from transformers import get_constant_schedule_with_warmup
 import os
 from typing import List
@@ -88,12 +88,12 @@ def main(args):
     warmup_steps = 1_00
     training_steps = 60000
     losses = []
-    #seed_value = 42
+    seed_value = 42
     
     train_data = process_file(data_train)
     dev_data = process_file(data_dev)
 
-    #random.seed(seed_value)
+    set_seed(seed_value)
    
    #create a List for the indexes of the training sample
     train_indices = list(range(len(train_data)))
