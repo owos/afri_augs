@@ -25,8 +25,6 @@ from transformers import pipeline
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger("sentencer concatenator")
 
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-DEVICE = "mps"
 
 
 def back_translate(
@@ -50,7 +48,7 @@ def back_translate(
         range(len(origin_target_data)), number_of_samples
     )
     target_samples = [origin_target_data[index] for index in target_sample_indexes]
-    translator = pipeline("text2text-generation", model=model, device=DEVICE)
+    translator = pipeline("text2text-generation", model=model, device=0)
     translated_source_data = [
         result["generated_text"] for result in translator(target_samples)
     ]

@@ -449,10 +449,8 @@ def main():
         )
     if data_args.do_aug and data_args.aug_file is not None:
         aug_data = load_dataset("json", data_files=data_args.aug_file)
-        aug_data["train"] = aug_data["train"].cast(raw_datasets["train"].features)
-        raw_datasets["train"] = concatenate_datasets(
-            [raw_datasets["train"], aug_data["train"]]
-        )
+        aug_data = aug_data.cast(raw_datasets['train'].features)
+        raw_datasets['train'] = concatenate_datasets([raw_datasets['train'], aug_data['train']])
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading.
 
@@ -553,8 +551,10 @@ def main():
         model.config.forced_bos_token_id = forced_bos_token_id
 
     # Get the language codes for input/target.
-    source_lang = data_args.source_lang.split("_")[0]
-    target_lang = data_args.target_lang.split("_")[0]
+    # source_lang = data_args.source_lang.split("_")[0]
+    # target_lang = data_args.target_lang.split("_")[0]
+    source_lang = data_args.dataset_config_name.split("-")[0]
+    target_lang = data_args.dataset_config_name.split("-")[1]
 
     # Temporarily set max_target_length for training.
     max_target_length = data_args.max_target_length
@@ -728,9 +728,7 @@ def main():
 
         metrics = train_result.metrics
         max_train_samples = (
-            data_args.max_train_samples
-            if data_args.max_train_samples is not None
-            else len(train_dataset)
+            data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
         )
         metrics["train_samples"] = min(max_train_samples, len(train_dataset))
 
@@ -753,14 +751,8 @@ def main():
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
 
-        metrics = trainer.evaluate(
-            max_length=max_length, num_beams=num_beams, metric_key_prefix="eval"
-        )
-        max_eval_samples = (
-            data_args.max_eval_samples
-            if data_args.max_eval_samples is not None
-            else len(eval_dataset)
-        )
+        metrics = trainer.evaluate(max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
+        max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
         trainer.log_metrics("eval", metrics)
