@@ -29,9 +29,7 @@ import datasets
 import evaluate
 import numpy as np
 import transformers
-from datasets import load_dataset, concatenate_datasets
-
-import transformers
+from datasets import concatenate_datasets, load_dataset
 from transformers import (
     AutoConfig,
     AutoModelForSeq2SeqLM,
@@ -277,15 +275,11 @@ class DataTrainingArguments:
     )
     do_aug: bool = field(
         default=False,
-        metadata={
-            "help": "Whether to perform data augmentation or not"
-        },
+        metadata={"help": "Whether to perform data augmentation or not"},
     )
     aug_file: Optional[str] = field(
         default=None,
-        metadata={
-            "help": "An optional input augmentaiont data file."
-        },
+        metadata={"help": "An optional input augmentaiont data file."},
     )
 
     def __post_init__(self):
@@ -455,7 +449,10 @@ def main():
         )
     if data_args.do_aug and data_args.aug_file is not None:
         aug_data = load_dataset("json", data_files=data_args.aug_file)
-        raw_datasets['train'] = concatenate_datasets([raw_datasets['train'], aug_data['train']])
+        aug_data["train"] = aug_data["train"].cast(raw_datasets["train"].features)
+        raw_datasets["train"] = concatenate_datasets(
+            [raw_datasets["train"], aug_data["train"]]
+        )
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading.
 
@@ -719,25 +716,27 @@ def main():
         else None,
     )
 
-    # # Training
-    # if training_args.do_train:
-    #     checkpoint = None
-    #     if training_args.resume_from_checkpoint is not None:
-    #         checkpoint = training_args.resume_from_checkpoint
-    #     elif last_checkpoint is not None:
-    #         checkpoint = last_checkpoint
-    #     train_result = trainer.train(resume_from_checkpoint=checkpoint)
-    #     trainer.save_model()  # Saves the tokenizer too for easy upload
+    # Training
+    if training_args.do_train:
+        checkpoint = None
+        if training_args.resume_from_checkpoint is not None:
+            checkpoint = training_args.resume_from_checkpoint
+        elif last_checkpoint is not None:
+            checkpoint = last_checkpoint
+        train_result = trainer.train(resume_from_checkpoint=checkpoint)
+        trainer.save_model()  # Saves the tokenizer too for easy upload
 
-    #     metrics = train_result.metrics
-    #     max_train_samples = (
-    #         data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
-    #     )
-    #     metrics["train_samples"] = min(max_train_samples, len(train_dataset))
+        metrics = train_result.metrics
+        max_train_samples = (
+            data_args.max_train_samples
+            if data_args.max_train_samples is not None
+            else len(train_dataset)
+        )
+        metrics["train_samples"] = min(max_train_samples, len(train_dataset))
 
-    #     trainer.log_metrics("train", metrics)
-    #     trainer.save_metrics("train", metrics)
-    #     trainer.save_state()
+        trainer.log_metrics("train", metrics)
+        trainer.save_metrics("train", metrics)
+        trainer.save_state()
 
     # # Evaluation
     results = {}
@@ -751,15 +750,21 @@ def main():
         if data_args.num_beams is not None
         else training_args.generation_num_beams
     )
-    # if training_args.do_eval:
-    #     logger.info("*** Evaluate ***")
+    if training_args.do_eval:
+        logger.info("*** Evaluate ***")
 
-    #     metrics = trainer.evaluate(max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
-    #     max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
-    #     metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
+        metrics = trainer.evaluate(
+            max_length=max_length, num_beams=num_beams, metric_key_prefix="eval"
+        )
+        max_eval_samples = (
+            data_args.max_eval_samples
+            if data_args.max_eval_samples is not None
+            else len(eval_dataset)
+        )
+        metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
-    #     trainer.log_metrics("eval", metrics)
-    #     trainer.save_metrics("eval", metrics)
+        trainer.log_metrics("eval", metrics)
+        trainer.save_metrics("eval", metrics)
 
     if training_args.do_predict:
         logger.info("*** Predict ***")
@@ -783,7 +788,6 @@ def main():
 
         if trainer.is_world_process_zero():
             if training_args.predict_with_generate:
-                breakpoint()
                 predictions = predict_results.predictions
                 predictions = np.where(
                     predictions != -100, predictions, tokenizer.pad_token_id
