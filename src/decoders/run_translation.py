@@ -212,11 +212,6 @@ class DataTrainingArguments:
         if self.train_file is not None:
             extension = self.train_file.split(".")[-1]
             assert extension == "json", "`train_file` should be a json file."
-        if self.validation_file is not None:
-            extension = self.validation_file.split(".")[-1]
-            assert extension == "json", "`validation_file` should be a json file."
-        if self.val_max_target_length is None:
-            self.val_max_target_length = self.max_target_length
 
 
 def start_training(model_args, data_args, training_args):
@@ -294,12 +289,6 @@ def start_training(model_args, data_args, training_args):
         if data_args.train_file is not None:
             data_files["train"] = data_args.train_file
             extension = data_args.train_file.split(".")[-1]
-        if data_args.validation_file is not None:
-            data_files["validation"] = data_args.validation_file
-            extension = data_args.validation_file.split(".")[-1]
-        if data_args.test_file is not None:
-            data_files["test"] = data_args.test_file
-            extension = data_args.test_file.split(".")[-1]
         raw_datasets = load_dataset(extension, data_files=data_files, cache_dir=model_args.cache_dir)
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
@@ -349,10 +338,6 @@ def start_training(model_args, data_args, training_args):
     # We need to tokenize inputs and targets.
     if training_args.do_train:
         column_names = raw_datasets["train"].column_names
-    elif training_args.do_eval:
-        column_names = raw_datasets["validation"].column_names
-    elif training_args.do_predict:
-        column_names = raw_datasets["test"].column_names
     else:
         logger.info("There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
         return
@@ -425,40 +410,6 @@ def start_training(model_args, data_args, training_args):
                 desc="Running tokenizer on train dataset",
             )
 
-    if training_args.do_eval:
-        max_target_length = data_args.val_max_target_length
-        if "validation" not in raw_datasets:
-            raise ValueError("--do_eval requires a validation dataset")
-        eval_dataset = raw_datasets["validation"]
-        if data_args.max_eval_samples is not None:
-            eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
-        with training_args.main_process_first(desc="validation dataset map pre-processing"):
-            eval_dataset = eval_dataset.map(
-                preprocess_function,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                remove_columns=column_names,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on validation dataset",
-            )
-
-    if training_args.do_predict:
-        max_target_length = data_args.val_max_target_length
-        if "test" not in raw_datasets:
-            raise ValueError("--do_predict requires a test dataset")
-        predict_dataset = raw_datasets["test"]
-        if data_args.max_predict_samples is not None:
-            predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
-        with training_args.main_process_first(desc="prediction dataset map pre-processing"):
-            predict_dataset = predict_dataset.map(
-                preprocess_function,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                remove_columns=column_names,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on prediction dataset",
-            )
-
     # Data collator
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     if data_args.pad_to_max_length:
@@ -480,8 +431,8 @@ def start_training(model_args, data_args, training_args):
 
         return preds, labels
 
-    def compute_metrics(eval_preds):
-        preds, labels = eval_preds
+    def compute_metrics(train_preds):
+        preds, labels = train_preds
         if isinstance(preds, tuple):
             preds = preds[0]
         decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
@@ -506,13 +457,14 @@ def start_training(model_args, data_args, training_args):
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
-        eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics if training_args.predict_with_generate else None,
     )
 
     # Training
+    results = {}
+
     if training_args.do_train:
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
@@ -532,63 +484,8 @@ def start_training(model_args, data_args, training_args):
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 
-    # Evaluation
-    results = {}
-    if training_args.do_eval:
-        logger.info("*** Evaluate ***")
-
-        metrics = trainer.evaluate(
-            max_length=data_args.val_max_target_length, num_beams=data_args.num_beams, metric_key_prefix="eval"
-        )
-        max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
-        metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
-
-        trainer.log_metrics("eval", metrics)
-        trainer.save_metrics("eval", metrics)
-
-    if training_args.do_predict:
-        logger.info("*** Predict ***")
-
-        predict_results = trainer.predict(
-            predict_dataset,
-            metric_key_prefix="predict",
-            max_length=data_args.val_max_target_length,
-            num_beams=data_args.num_beams,
-        )
-        metrics = predict_results.metrics
-        max_predict_samples = (
-            data_args.max_predict_samples if data_args.max_predict_samples is not None else len(predict_dataset)
-        )
-        metrics["predict_samples"] = min(max_predict_samples, len(predict_dataset))
-
-        trainer.log_metrics("predict", metrics)
-        trainer.save_metrics("predict", metrics)
-
-        if trainer.is_world_process_zero():
-            if training_args.predict_with_generate:
-                predictions = tokenizer.batch_decode(
-                    predict_results.predictions, skip_special_tokens=True, clean_up_tokenization_spaces=True
-                )
-                predictions = [pred.strip().replace("\n"," ") for pred in predictions]
-                output_prediction_file = os.path.join(training_args.output_dir, "generated_predictions.txt")
-                with open(output_prediction_file, "w", encoding="utf-8") as writer:
-                    writer.write("\n".join(predictions))
-
-    if training_args.push_to_hub:
-        kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "translation"}
-        if data_args.dataset_name is not None:
-            kwargs["dataset_tags"] = data_args.dataset_name
-            if data_args.dataset_config_name is not None:
-                kwargs["dataset_args"] = data_args.dataset_config_name
-                kwargs["dataset"] = f"{data_args.dataset_name} {data_args.dataset_config_name}"
-            else:
-                kwargs["dataset"] = data_args.dataset_name
-
-        languages = [l for l in [data_args.source_lang, data_args.target_lang] if l is not None]
-        if len(languages) > 0:
-            kwargs["language"] = languages
-
-        trainer.push_to_hub(**kwargs)
+        results["train_metrics"] = metrics
+        results["train_samples"] = metrics.get("train_samples", 0)
 
     return results
 
@@ -608,19 +505,22 @@ def get_args(args_dict):
   return model_args, data_args, training_args
 
 args_dict = {
+    "output_dir": "/test/",
+    "model_name_or_path": "bigscience/bloomz-7b1-mt",
+    "train_file": "train.json",
+    "source_lang": "sw",
+    "target_lang": "sw",
     "max_source_length": "128",
     "max_target_length": "128",
     "num_train_epochs": "3",
     "per_device_train_batch_size": "4",
-    "per_device_eval_batch_size": "4",
     "num_beams": "5",
     "save_steps": "10000",
     "seed": "65",
     "do_train": "True",
-    "do_eval": "True",
-    "do_predict":"True",
     "predict_with_generate": "True",
     "overwrite_output_dir": "True",
+    "source_prefix": "Paraphrase the above sentence in 1 unique way: ",
 }
 
 model_args, data_args, training_args = get_args(args_dict)
