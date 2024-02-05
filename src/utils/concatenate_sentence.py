@@ -50,7 +50,7 @@ def back_translate(
     target_samples = [origin_target_data[index] for index in target_sample_indexes]
     translator = pipeline("text2text-generation", model=model, device=0)
     translated_source_data = [
-        result["generated_text"] for result in translator(target_samples)
+        result["generated_text"] for result in translator(target_samples, batch_size=16)
     ]
     return translated_source_data, target_sample_indexes
 
@@ -187,7 +187,7 @@ def concantenate_sentences(
 
     logger.info("Putting augmented data into huggingface dataset.")
     for source, target in list(zip(concantenated_source, concantenated_target)):
-        data = data.add_item({"translation": {"en": source, "yor": target}})
+        data = data.add_item({"translation": {source_lang: source, target_lang: target}})
 
     return data
 
