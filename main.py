@@ -1,9 +1,9 @@
 import argparse
-from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 def load_model_and_tokenizer(model_name):
-    model = M2M100ForConditionalGeneration.from_pretrained(model_name)
-    tokenizer = M2M100Tokenizer.from_pretrained(model_name)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     return model, tokenizer
 
 def perform_translation(model, tokenizer, batch_texts):
@@ -19,11 +19,12 @@ def perform_back_translation(original_texts, original_model, original_tokenizer,
     return list(set(original_texts) | set(back_translated_batch))
 
 def main():
-    parser = argparse.ArgumentParser(description="Perform translation and back-translation with M2M100 models.")
+    parser = argparse.ArgumentParser(description="Perform translation and back-translation with Seq2Seq models.")
     parser.add_argument("--model_name", type=str, required=True, help="Model name for tokenizer and model loading.")
-    parser.add_argument("--original_texts", nargs="+", required=True, help="Original texts for translation.")
     parser.add_argument("--back_translation_model_name", type=str, required=True, help="Model name for back translation.")
-    parser.add_argument("--tokenizer_name", type=str, required=True, help="Tokenizer name for loading.")
+    parser.add_argument("--source_lang", type=str, required=True, help="Source language code.")
+    parser.add_argument("--target_lang", type=str, required=True, help="Target language code.")
+    parser.add_argument("--original_texts", nargs="+", required=True, help="Original texts for translation.")
     
     args = parser.parse_args()
 
@@ -41,4 +42,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
