@@ -774,7 +774,6 @@ def main():
 
         if trainer.is_world_process_zero():
             if training_args.predict_with_generate:
-                breakpoint()
                 predictions = predict_results.predictions
                 predictions = np.where(
                     predictions != -100, predictions, tokenizer.pad_token_id
